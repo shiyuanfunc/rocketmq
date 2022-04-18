@@ -147,6 +147,20 @@ public class Message implements Serializable {
         this.putProperty(MessageConst.PROPERTY_DELAY_TIME_LEVEL, String.valueOf(level));
     }
 
+   public void setDelayTimeAtTime(long time){
+        // 延迟消息落盘问题 对延迟时间进行限制
+       // 精确到s级
+       this.putProperty(MessageConst.PROPERTY_DELAY_ARBITRARILY_TIME_LEVEL, String.valueOf(time));
+   }
+
+   public long getDelayTimeAtTime(){
+       String time = this.getProperty(MessageConst.PROPERTY_DELAY_ARBITRARILY_TIME_LEVEL);
+       if (time != null){
+           return Long.parseLong(time);
+       }
+       return 0L;
+   }
+
     public boolean isWaitStoreMsgOK() {
         String result = this.getProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK);
         if (null == result) {

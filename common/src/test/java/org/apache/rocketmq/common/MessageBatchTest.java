@@ -29,7 +29,6 @@ public class MessageBatchTest {
         List<Message> messages = new ArrayList<Message>();
         Message message1 = new Message("topic1", "body".getBytes());
         Message message2 = new Message("topic1", "body".getBytes());
-
         messages.add(message1);
         messages.add(message2);
         return messages;

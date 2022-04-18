@@ -56,4 +56,13 @@ public class StorePathConfigHelper {
         return rootDir + File.separator + "transaction" + File.separator + "redolog";
     }
 
+    /**
+     * 定时消息延迟队列 消费进度文件
+     * @param rootDir
+     * @return
+     */
+    public static String getFixedTimeDelayOffsetPath(final String rootDir){
+        return rootDir + File.separator + "config" + File.separator + "fixedTimeDelayOffset.json";
+    }
+
 }

@@ -620,6 +620,16 @@ public class CommitLog {
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
                 || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
+            // 任意维度的定时消息
+            if (msg.getDelayTimeAtTime() > 0){
+                String timeTopic = TopicValidator.RMQ_TIME_TOPIC;
+                //
+                MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_TOPIC, msg.getTopic());
+                MessageAccessor.putProperty(msg, MessageConst.PROPERTY_REAL_QUEUE_ID, String.valueOf(msg.getQueueId()));
+                msg.setPropertiesString(MessageDecoder.messageProperties2String(msg.getProperties()));
+                msg.setTopic(timeTopic);
+                msg.setQueueId(0);
+            }
             // Delay Delivery
             if (msg.getDelayTimeLevel() > 0) {
                 if (msg.getDelayTimeLevel() > this.defaultMessageStore.getScheduleMessageService().getMaxDelayLevel()) {

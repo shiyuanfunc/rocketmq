@@ -55,6 +55,11 @@ public class MessageConst {
     public static final String PROPERTY_INNER_MULTI_DISPATCH = "INNER_MULTI_DISPATCH";
     public static final String PROPERTY_INNER_MULTI_QUEUE_OFFSET = "INNER_MULTI_QUEUE_OFFSET";
 
+    /**
+     * 任意时间
+     */
+    public static final String PROPERTY_DELAY_ARBITRARILY_TIME_LEVEL = "ARBITRARILY";
+
     public static final String KEY_SEPARATOR = " ";
 
     public static final HashSet<String> STRING_HASH_SET = new HashSet<>(64);

@@ -133,11 +133,16 @@ public class BrokerStartup {
 
             MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), brokerConfig);
 
+            if (brokerConfig.getRocketmqHome() == null || "".equals(brokerConfig.getRocketmqHome())){
+                brokerConfig.setRocketmqHome("/Users/songxiaohui/Documents/dev/workspace/rocketmq/distribution");
+            }
             if (null == brokerConfig.getRocketmqHome()) {
                 System.out.printf("Please set the %s variable in your environment to match the location of the RocketMQ installation", MixAll.ROCKETMQ_HOME_ENV);
                 System.exit(-2);
             }
-
+            if (brokerConfig.getNamesrvAddr() == null || "".equals(brokerConfig.getNamesrvAddr())){
+                brokerConfig.setNamesrvAddr("127.0.0.1:9876");
+            }
             String namesrvAddr = brokerConfig.getNamesrvAddr();
             if (null != namesrvAddr) {
                 try {

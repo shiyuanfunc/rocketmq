@@ -67,6 +67,7 @@ import org.apache.rocketmq.store.dledger.DLedgerCommitLog;
 import org.apache.rocketmq.store.ha.HAService;
 import org.apache.rocketmq.store.index.IndexService;
 import org.apache.rocketmq.store.index.QueryOffsetResult;
+import org.apache.rocketmq.store.schedule.FixedTimeMessageService;
 import org.apache.rocketmq.store.schedule.ScheduleMessageService;
 import org.apache.rocketmq.store.stats.BrokerStatsManager;
 
@@ -127,6 +128,11 @@ public class DefaultMessageStore implements MessageStore {
     private final ScheduledExecutorService diskCheckScheduledExecutorService =
             Executors.newSingleThreadScheduledExecutor(new ThreadFactoryImpl("DiskCheckScheduledThread"));
 
+    /**
+     * 定时消息
+     */
+    private final FixedTimeMessageService fixedTimeMessageService;
+
     public DefaultMessageStore(final MessageStoreConfig messageStoreConfig, final BrokerStatsManager brokerStatsManager,
         final MessageArrivingListener messageArrivingListener, final BrokerConfig brokerConfig) throws IOException {
         this.messageArrivingListener = messageArrivingListener;
@@ -174,6 +180,7 @@ public class DefaultMessageStore implements MessageStore {
         MappedFile.ensureDirOK(getStorePathPhysic());
         MappedFile.ensureDirOK(getStorePathLogic());
         lockFile = new RandomAccessFile(file, "rw");
+        fixedTimeMessageService = new FixedTimeMessageService(this);
     }
 
     public void truncateDirtyLogicFiles(long phyOffset) {
@@ -302,6 +309,7 @@ public class DefaultMessageStore implements MessageStore {
         this.createTempFile();
         this.addScheduleTask();
         this.shutdown = false;
+        this.fixedTimeMessageService.start();
     }
 
     public void shutdown() {
@@ -2053,6 +2061,7 @@ public class DefaultMessageStore implements MessageStore {
 
                             if (dispatchRequest.isSuccess()) {
                                 if (size > 0) {
+                                    System.err.println("[doReput] topic: " + dispatchRequest.getTopic() + " queueId: " + dispatchRequest.getQueueId());
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()

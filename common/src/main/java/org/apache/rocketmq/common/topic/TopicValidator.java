@@ -35,6 +35,8 @@ public class TopicValidator {
     public static final String RMQ_SYS_SELF_TEST_TOPIC = "SELF_TEST_TOPIC";
     public static final String RMQ_SYS_OFFSET_MOVED_EVENT = "OFFSET_MOVED_EVENT";
 
+    public static final String RMQ_TIME_TOPIC = "RMQ_TIME_TOPIC";
+
     public static final String SYSTEM_TOPIC_PREFIX = "rmq_sys_";
     public static final boolean[] VALID_CHAR_BIT_MAP = new boolean[128];
     private static final int TOPIC_MAX_LENGTH = 127;
@@ -56,6 +58,7 @@ public class TopicValidator {
         SYSTEM_TOPIC_SET.add(RMQ_SYS_TRANS_CHECK_MAX_TIME_TOPIC);
         SYSTEM_TOPIC_SET.add(RMQ_SYS_SELF_TEST_TOPIC);
         SYSTEM_TOPIC_SET.add(RMQ_SYS_OFFSET_MOVED_EVENT);
+        SYSTEM_TOPIC_SET.add(RMQ_TIME_TOPIC);
 
         NOT_ALLOWED_SEND_TOPIC_SET.add(RMQ_SYS_SCHEDULE_TOPIC);
         NOT_ALLOWED_SEND_TOPIC_SET.add(RMQ_SYS_TRANS_HALF_TOPIC);
@@ -63,6 +66,7 @@ public class TopicValidator {
         NOT_ALLOWED_SEND_TOPIC_SET.add(RMQ_SYS_TRANS_CHECK_MAX_TIME_TOPIC);
         NOT_ALLOWED_SEND_TOPIC_SET.add(RMQ_SYS_SELF_TEST_TOPIC);
         NOT_ALLOWED_SEND_TOPIC_SET.add(RMQ_SYS_OFFSET_MOVED_EVENT);
+        NOT_ALLOWED_SEND_TOPIC_SET.add(RMQ_TIME_TOPIC);
 
         // regex: ^[%|a-zA-Z0-9_-]+$
         // %
