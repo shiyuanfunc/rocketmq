@@ -222,6 +222,9 @@ public class DefaultMessageStore implements MessageStore {
                 if (null != scheduleMessageService) {
                     result =  this.scheduleMessageService.load();
                 }
+                if (fixedTimeMessageService != null){
+                    fixedTimeMessageService.load();
+                }
             }
 
         } catch (Exception e) {

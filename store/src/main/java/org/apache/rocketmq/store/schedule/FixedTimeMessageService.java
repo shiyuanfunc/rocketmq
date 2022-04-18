@@ -6,11 +6,14 @@ import io.netty.util.TimerTask;
 import org.apache.rocketmq.common.ConfigManager;
 import org.apache.rocketmq.common.ThreadFactoryImpl;
 import org.apache.rocketmq.common.TopicFilterType;
+import org.apache.rocketmq.common.constant.LoggerName;
 import org.apache.rocketmq.common.message.MessageAccessor;
 import org.apache.rocketmq.common.message.MessageConst;
 import org.apache.rocketmq.common.message.MessageDecoder;
 import org.apache.rocketmq.common.message.MessageExt;
 import org.apache.rocketmq.common.topic.TopicValidator;
+import org.apache.rocketmq.logging.InternalLogger;
+import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.store.ConsumeQueue;
 import org.apache.rocketmq.store.DefaultMessageStore;
 import org.apache.rocketmq.store.MessageExtBrokerInner;
@@ -18,7 +21,8 @@ import org.apache.rocketmq.store.PutMessageResult;
 import org.apache.rocketmq.store.SelectMappedBufferResult;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
-import java.util.Map;
+import javax.swing.text.html.Option;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -36,12 +40,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FixedTimeMessageService extends ConfigManager {
 
+    private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.STORE_LOGGER_NAME);
+
     /**
      * 消息处理器
      */
     private final DefaultMessageStore defaultMessageStore;
 
     private final ScheduledExecutorService scheduledExecutorService;
+
+    private final ScheduledExecutorService persistScheduledExecutorService;
     /***
      * 时间轮
      */
@@ -63,6 +71,7 @@ public class FixedTimeMessageService extends ConfigManager {
     public FixedTimeMessageService(DefaultMessageStore defaultMessageStore){
         this.defaultMessageStore = defaultMessageStore;
         scheduledExecutorService = new ScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("FixedTimeMessageService-"));
+        persistScheduledExecutorService = new ScheduledThreadPoolExecutor(1, new ThreadFactoryImpl("persistScheduledExecutorService-"));
         timer = new HashedWheelTimer();
         recoverOffset = 0L;
     }
@@ -79,6 +88,12 @@ public class FixedTimeMessageService extends ConfigManager {
             FixedTimeMessageService.this.scheduledExecutorService.schedule(new FixedTimeLoadFromConsumeQueueTask(this.recoverOffset),
                     10000L, TimeUnit.MILLISECONDS);
             System.out.println("fixedTimeMessageService started >>>>>>> ");
+            persistScheduledExecutorService.scheduleWithFixedDelay(new Runnable() {
+                @Override
+                public void run() {
+                    FixedTimeMessageService.this.persist();
+                }
+            }, 30000L, 10000, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -93,14 +108,15 @@ public class FixedTimeMessageService extends ConfigManager {
             // 根据偏移量 读取consumerQueue, 将consumerQueue中未消费的数据 加载到时间轮中
             // 默认一个队列
             ConsumeQueue consumeQueue = FixedTimeMessageService.this.defaultMessageStore.findConsumeQueue(TopicValidator.RMQ_TIME_TOPIC, 0);
+            this.offset = Optional.ofNullable(FixedTimeMessageService.this.queueOffsetTable.get(0)).orElse(0L);
             if (consumeQueue == null){
-                FixedTimeMessageService.this.scheduleNextTimerTask(offset);
+                FixedTimeMessageService.this.scheduleNextTimerTask(this.offset);
                 return;
             }
             // 读取 consumerQueue 队列, 加载到时间轮中
             SelectMappedBufferResult mappedBufferResult = consumeQueue.getIndexBuffer(this.offset);
             if (mappedBufferResult == null){
-                FixedTimeMessageService.this.scheduleNextTimerTask(offset);
+                FixedTimeMessageService.this.scheduleNextTimerTask(this.offset);
                 return;
             }
             int i = 0;
@@ -126,6 +142,7 @@ public class FixedTimeMessageService extends ConfigManager {
                 FixedTimeMessageService.this.addTask(messageExt.getQueueOffset(), messageExt.getQueueId(), delayTime);
             }
             long queueOffset = this.offset + (i / 20);
+            FixedTimeMessageService.this.queueOffsetTable.put(0, queueOffset);
             // 刷新消费进度
             FixedTimeMessageService.this.doImmediate(queueOffset);
         }
@@ -223,10 +240,6 @@ public class FixedTimeMessageService extends ConfigManager {
         return msgInner;
     }
 
-    // 进度持久化
-    // 数据恢复
-
-
     @Override
     public String encode() {
         return this.encode(true);
@@ -235,15 +248,39 @@ public class FixedTimeMessageService extends ConfigManager {
     @Override
     public boolean load() {
         // 加载文件
-        boolean loadFile = super.load();
-        // 校验队列消费进度 如果 当前Map存储的消费进度
-        return false;
+        boolean result = super.load();
+        // 校验队列消费进度
+        result &= this.correctDelayOffset();
+        // 根据消费进度加载定时时间到时间轮
+        return result;
     }
 
     private boolean correctDelayOffset(){
         try{
             for (Integer queueId : this.queueOffsetTable.keySet()) {
                 // 根据 topic queueId 获取consumeQueue
+                ConsumeQueue consumeQueue = FixedTimeMessageService.this.defaultMessageStore.findConsumeQueue(TopicValidator.RMQ_TIME_TOPIC, queueId);
+                Long currentDelayOffset = this.queueOffsetTable.get(queueId);
+                if (consumeQueue == null || currentDelayOffset == null){
+                    continue;
+                }
+                long correctDelayOffset = currentDelayOffset;
+                long cqMinOffset = consumeQueue.getMinOffsetInQueue();
+                long cqMaxOffset = consumeQueue.getMaxOffsetInQueue();
+                if (currentDelayOffset < cqMinOffset) {
+                    correctDelayOffset = cqMinOffset;
+                    log.error("FixedTime CQ offset invalid. offset={}, cqMinOffset={}, cqMaxOffset={}, queueId={}",
+                            currentDelayOffset, cqMinOffset, cqMaxOffset, consumeQueue.getQueueId());
+                }
+                if (currentDelayOffset > cqMaxOffset) {
+                    correctDelayOffset = cqMaxOffset;
+                    log.error("schedule CQ offset invalid. offset={}, cqMinOffset={}, cqMaxOffset={}, queueId={}",
+                            currentDelayOffset, cqMinOffset, cqMaxOffset, consumeQueue.getQueueId());
+                }
+                if (correctDelayOffset != currentDelayOffset) {
+                    log.error("correct delay offset [ queueId {} ] from {} to {}", queueId, currentDelayOffset, correctDelayOffset);
+                    queueOffsetTable.put(queueId, correctDelayOffset);
+                }
             }
         }catch (Exception ex){
             return false;

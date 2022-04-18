@@ -25,9 +25,7 @@ public class ProducerTest {
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         long currentTime = System.currentTimeMillis();
         String sendDateStr = simpleDateFormat.format(new Date(currentTime));
-
         Random random = new Random();
-
         for (int i = 0; i < 4; i++) {
             int rando = random.nextInt(100000);
             if (rando < 10000){
