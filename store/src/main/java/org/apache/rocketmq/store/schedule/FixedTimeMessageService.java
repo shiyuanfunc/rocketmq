@@ -21,7 +21,6 @@ import org.apache.rocketmq.store.PutMessageResult;
 import org.apache.rocketmq.store.SelectMappedBufferResult;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
-import javax.swing.text.html.Option;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -142,8 +141,8 @@ public class FixedTimeMessageService extends ConfigManager {
                 FixedTimeMessageService.this.addTask(messageExt.getQueueOffset(), messageExt.getQueueId(), delayTime);
             }
             long queueOffset = this.offset + (i / 20);
+            // todo 此时只是提交任务到时间轮, 刷新消费进度有问题, 如果此时持久化进度文件,并宕机 则消息会丢。
             FixedTimeMessageService.this.queueOffsetTable.put(0, queueOffset);
-            // 刷新消费进度
             FixedTimeMessageService.this.doImmediate(queueOffset);
         }
     }
@@ -205,11 +204,11 @@ public class FixedTimeMessageService extends ConfigManager {
                     FixedTimeMessageService.this.defaultMessageStore.asyncPutMessage(messageExtBrokerInner);
             PutMessageResult putMessageResult = asyncPutMessage.get();
             System.out.println("[FixedTimeTask] put message result " + putMessageResult);
-            // todo 记录 消费的进度。
+            // todo 此时应记录消费的进度。但需要考虑一个问题 比如offset 100 的消息定时时间是2022-05-10 23:00:00
+            // 但是 offset 200的消息定时时间是2022-05-10 19:00:00,那么会是offset 200的消息先消费 但此时如果直接将消费进度修改为200,会有问题
+            // 可参考 集群并发消费模式的 消费进度上报机制。 treeMap
         }
     }
-
-    // todo 从consumerQueue 加载数据恢复到时间轮中
 
     /**
      * 转换 消息
