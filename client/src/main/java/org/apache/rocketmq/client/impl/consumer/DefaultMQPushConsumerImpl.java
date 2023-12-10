@@ -26,7 +26,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
+import com.google.common.util.concurrent.RateLimiter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.rocketmq.client.QueryResult;
@@ -58,6 +61,7 @@ import org.apache.rocketmq.client.impl.CommunicationMode;
 import org.apache.rocketmq.client.impl.FindBrokerResult;
 import org.apache.rocketmq.client.impl.MQClientManager;
 import org.apache.rocketmq.client.impl.factory.MQClientInstance;
+import org.apache.rocketmq.client.nacos.NacosService;
 import org.apache.rocketmq.client.stat.ConsumerStatsManager;
 import org.apache.rocketmq.common.KeyBuilder;
 import org.apache.rocketmq.common.MixAll;
@@ -142,10 +146,16 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
     @SuppressWarnings("FieldMayBeFinal")
     private static boolean doNotUpdateTopicSubscribeInfoWhenSubscriptionChanged = false;
 
+    private Map<String, RateLimiter> topicRateLimiterMap;
+
+    private NacosService nacosService;
+
     public DefaultMQPushConsumerImpl(DefaultMQPushConsumer defaultMQPushConsumer, RPCHook rpcHook) {
         this.defaultMQPushConsumer = defaultMQPushConsumer;
         this.rpcHook = rpcHook;
         this.pullTimeDelayMillsWhenException = defaultMQPushConsumer.getPullTimeDelayMillsWhenException();
+        this.topicRateLimiterMap = new ConcurrentHashMap<>();
+        this.nacosService = new NacosService();
     }
 
     public void registerFilterMessageHook(final FilterMessageHook hook) {
@@ -265,6 +275,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             return;
         }
 
+        String topic = pullRequest.getMessageQueue().getTopic();
+        // 判断当前topic是否受流控限制 且 本次是否被限制
+        if (!this.checkTopicFlowControl(topic)) {
+            log.info("[flow control]current topic:[{}] pull message is flow control, pull message later ", topic);
+            this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_SUSPEND);
+            return;
+        }
         long cachedMessageCount = processQueue.getMsgCount().get();
         long cachedMessageSizeInMiB = processQueue.getMsgSize().get() / (1024 * 1024);
 
@@ -889,6 +906,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 log.info("the consumer [{}] shutdown OK", this.defaultMQPushConsumer.getConsumerGroup());
                 this.rebalanceImpl.destroy();
                 this.serviceState = ServiceState.SHUTDOWN_ALREADY;
+                this.nacosService.shutdown();
                 break;
             case SHUTDOWN_ALREADY:
                 break;
@@ -974,6 +992,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
                 mQClientFactory.start();
                 log.info("the consumer [{}] start OK.", this.defaultMQPushConsumer.getConsumerGroup());
                 this.serviceState = ServiceState.RUNNING;
+                this.nacosService.start();
                 break;
             case RUNNING:
             case START_FAILED:
@@ -1543,7 +1562,6 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     public void setConsumeMessageService(ConsumeMessageService consumeMessageService) {
         this.consumeMessageService = consumeMessageService;
-
     }
 
     public void setPullTimeDelayMillsWhenException(long pullTimeDelayMillsWhenException) {
@@ -1552,5 +1570,27 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
     int[] getPopDelayLevel() {
         return popDelayLevel;
+    }
+
+    /**
+     * 校验是否
+     * @param topic
+     * @return
+     */
+    private boolean checkTopicFlowControl(String topic) {
+
+        int rate = this.nacosService.getTopicRate(topic);
+        RateLimiter rateLimiter = topicRateLimiterMap.compute(topic, (k, v) -> {
+            if (v == null) {
+                return RateLimiter.create(rate);
+            }
+            double tempRate = v.getRate();
+            if (tempRate != rate) {
+                log.info("Topic {} rate changed, old rate: {}, currrent: {}", topic, tempRate, rate);
+                v.setRate(rate);
+            }
+            return v;
+        });
+        return rateLimiter.tryAcquire();
     }
 }

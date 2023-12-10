@@ -66,5 +66,11 @@
             <groupId>io.github.aliyunmq</groupId>
             <artifactId>rocketmq-logback-classic</artifactId>
         </dependency>
+
+        <!-- 配置 -->
+        <dependency>
+            <groupId>com.alibaba.nacos</groupId>
+            <artifactId>nacos-client</artifactId>
+        </dependency>
     </dependencies>
 </project>

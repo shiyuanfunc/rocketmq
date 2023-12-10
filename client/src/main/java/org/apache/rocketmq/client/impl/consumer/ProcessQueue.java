@@ -60,6 +60,8 @@ public class ProcessQueue {
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
     private volatile boolean locked = false;
     private volatile long lastLockTimestamp = System.currentTimeMillis();
+
+    // 是否可消费
     private volatile boolean consuming = false;
     private volatile long msgAccCnt = 0;
 

@@ -90,6 +90,7 @@ public class DefaultMQProducerTest {
         producer.setNamesrvAddr("127.0.0.1:9876");
         producer.setCompressMsgBodyOverHowmuch(16);
         message = new Message(topic, new byte[] {'a'});
+        message.setDelayTimeMs(123123L);
         zeroMsg = new Message(topic, new byte[] {});
         bigMessage = new Message(topic, "This is a very huge message!".getBytes());
 
