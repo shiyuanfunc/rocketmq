@@ -17,6 +17,8 @@ import com.alibaba.nacos.api.config.listener.AbstractListener;
 import com.alibaba.nacos.api.exception.NacosException;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
+import org.apache.rocketmq.client.impl.consumer.DefaultMQPushConsumerImpl;
 import org.apache.rocketmq.common.ServiceState;
 import org.apache.rocketmq.logging.org.slf4j.Logger;
 import org.apache.rocketmq.logging.org.slf4j.LoggerFactory;
@@ -36,8 +38,8 @@ public class NacosService {
     private static final Logger log = LoggerFactory.getLogger(NacosService.class);
     private static ConfigService configService = null;
     private static final Map<String, String> configMap = new ConcurrentHashMap<>();
-
     private volatile ServiceState serviceState = ServiceState.CREATE_JUST;
+
 
     private static String serverAddr = "192.168.1.2:8848";
     private static String namespace = "config_info";
@@ -65,6 +67,7 @@ public class NacosService {
                 } catch (Exception ex) {
                     log.info("nacos init error ", ex);
                 }
+                // 重置消费者单次拉取消息的大小
                 break;
             case RUNNING:
             case START_FAILED:

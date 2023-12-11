@@ -277,11 +277,13 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
 
         String topic = pullRequest.getMessageQueue().getTopic();
         // 判断当前topic是否受流控限制 且 本次是否被限制
-        if (!this.checkTopicFlowControl(topic)) {
-            log.info("[flow control]current topic:[{}] pull message is flow control, pull message later ", topic);
-            this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_SUSPEND);
-            return;
-        }
+        // 不能在当前处判断, rocketmq 默认单次拉取32条消息 此处只能限制拉取消息的频率
+        //    或者修改单次拉取消息的数量
+//        if (!this.checkTopicFlowControl(topic)) {
+//            log.info("[flow control]current topic:[{}] pull message is flow control, pull message later ", topic);
+//            this.executePullRequestLater(pullRequest, PULL_TIME_DELAY_MILLS_WHEN_SUSPEND);
+//            return;
+//        }
         long cachedMessageCount = processQueue.getMsgCount().get();
         long cachedMessageSizeInMiB = processQueue.getMsgSize().get() / (1024 * 1024);
 
@@ -1577,7 +1579,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
      * @param topic
      * @return
      */
-    private boolean checkTopicFlowControl(String topic) {
+    public boolean checkTopicFlowControl(String topic) {
 
         int rate = this.nacosService.getTopicRate(topic);
         RateLimiter rateLimiter = topicRateLimiterMap.compute(topic, (k, v) -> {
@@ -1591,6 +1593,7 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
             }
             return v;
         });
+        log.info("rate: {}, rateLimiter hashCode: {}", rate, rateLimiter.hashCode());
         return rateLimiter.tryAcquire();
     }
 }

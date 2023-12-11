@@ -381,6 +381,12 @@ public class ConsumeMessageConcurrentlyService implements ConsumeMessageService 
                 return;
             }
 
+            String topic = this.messageQueue.getTopic();
+            if (!ConsumeMessageConcurrentlyService.this.defaultMQPushConsumerImpl.checkTopicFlowControl(topic)) {
+                log.info("[Flow Control] current topic:[{}] consume message is flow control, consume message later ", topic);
+                ConsumeMessageConcurrentlyService.this.submitConsumeRequestLater(this);
+                return;
+            }
             MessageListenerConcurrently listener = ConsumeMessageConcurrentlyService.this.messageListener;
             ConsumeConcurrentlyContext context = new ConsumeConcurrentlyContext(messageQueue);
             ConsumeConcurrentlyStatus status = null;
